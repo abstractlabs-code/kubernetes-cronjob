@@ -4,18 +4,18 @@ metadata:
   name: pod-label-checker
   namespace: default
 spec:
-  schedule: "*/5 * * * *" # Runs every 5 minutes, use https://crontab-generator.org to generate 
+  schedule: "*/2 * * * *" # Runs every 5 minutes, use https://crontab-generator.org to generate 
   jobTemplate:
     spec:
       template:
         spec:
           containers:
             - name: label-checker
-              image: ***
+              image: abstractlabs/pod-check-cronjob:latest
               imagePullPolicy: Always
               env:
                 - name: WEBHOOK_URL
-                  value: "https://example.com/webhook"
+                  value: "https://webhook.site/8aa771ea-7c7f-4b17-9fa8-4921d1242ba8"
                 - name: POD_NAMESPACE
                   valueFrom:
                     fieldRef:
