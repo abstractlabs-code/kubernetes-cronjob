@@ -1,0 +1,16 @@
+{
+    "ImpactedEntities": "{ImpactedEntities}",
+    "ImpactedEntity": "{ImpactedEntity}",
+    "PID": "{PID}",
+    "ProblemDetailsHTML": "{ProblemDetailsHTML}",
+    "ProblemDetailsJSONv2": "{ProblemDetailsJSONv2}",
+    "ProblemDetailsMarkdown": "{ProblemDetailsMarkdown}",
+    "ProblemDetailsText": "{ProblemDetailsText}",
+    "ProblemID": "{ProblemID}",
+    "ProblemImpact": "{ProblemImpact}",
+    "ProblemSeverity": "{ProblemSeverity}",
+    "ProblemTitle": "{ProblemTitle}",
+    "ProblemURL": "{ProblemURL}",
+    "State": "{State}",
+    "Tags": "{Tags}"
+}
