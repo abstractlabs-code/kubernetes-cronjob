@@ -13,6 +13,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY check_pods.py .
+COPY pod-observability-check.py .
 
 CMD ["python", "pod-observability-check.py"]
