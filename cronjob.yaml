@@ -9,6 +9,7 @@ spec:
     spec:
       template:
         spec:
+          serviceAccountName: pod-info-reader-sa  
           containers:
             - name: label-checker
               image: abstractlabs/pod-check-cronjob:latest
