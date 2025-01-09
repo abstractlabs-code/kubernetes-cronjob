@@ -1,0 +1,9 @@
+namespaces:
+  - namespace1
+  - namespace2
+  - namespace3
+
+roleBinding:
+  roleName: pod-reader
+  serviceAccountName: pod-reader
+  serviceAccountNamespace: default
