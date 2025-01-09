@@ -2,15 +2,15 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: pod-reader-binding
+  name: {{ $.Values.roleBinding.name }}
   namespace: {{ . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ $.Values.roleBinding.serviceAccountName }}
-    namespace: {{ $.Values.roleBinding.serviceAccountNamespace }}
+    name: {{ $.Values.serviceAccount.name }}
+    namespace: {{ $.Values.serviceAccount.namespace }}
 roleRef:
   kind: Role
-  name: {{ $.Values.roleBinding.roleName }}
+  name: {{ $.Values.role.name }}
   apiGroup: rbac.authorization.k8s.io
 ---
 {{- end }}

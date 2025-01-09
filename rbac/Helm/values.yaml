@@ -1,9 +1,15 @@
+# List of namespaces where the resources will be applied
 namespaces:
   - namespace1
   - namespace2
   - namespace3
 
+serviceAccount:
+  name: pod-reader-sa
+  namespace: default
+
+role:
+  name: pod-reader-role
+
 roleBinding:
-  roleName: pod-reader
-  serviceAccountName: pod-reader
-  serviceAccountNamespace: default
+  name: pod-reader-binding
