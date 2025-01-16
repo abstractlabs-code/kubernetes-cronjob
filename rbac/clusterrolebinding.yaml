@@ -1,12 +1,12 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: pod-info-reader-binding
+  name: mgmt-service-account-clusterrole-binding
 subjects:
   - kind: ServiceAccount
-    name: pod-info-reader-sa
-    namespace: cronjob-name-space  
+    name: mgmt-service-account
+    namespace: mgmt  
 roleRef:
   kind: ClusterRole
-  name: pod-info-reader  
+  name: mgmt-service-account-clusterrole  
   apiGroup: rbac.authorization.k8s.io

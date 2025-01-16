@@ -5,72 +5,100 @@ import requests
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 import sys
+from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-if not WEBHOOK_URL:
-    logger.error("WEBHOOK_URL environment variable is not set.")
-    sys.exit(1)
-
-NAMESPACE = os.getenv("POD_NAMESPACE", "default")
+DYNATRACE_API_URL = os.getenv("DYNATRACE_API_URL")
+DYNATRACE_API_TOKEN = os.getenv("DYNATRACE_API_TOKEN")
+NAMESPACES = os.getenv("POD_NAMESPACES", "default").split(",")  # List of namespaces
 LABELS_TO_CHECK = json.loads(os.getenv("LABELS_TO_CHECK", '[{"label_key": "observable", "label_value": "false"}]'))
 
-def send_alert(payload):
-    """Sends the alert to the external webhook."""
-    try:
-        response = requests.post(WEBHOOK_URL, json=payload)
-        response.raise_for_status()
-        logger.info("Alert sent successfully.")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to send alert: {e}")
+if not DYNATRACE_API_URL or not DYNATRACE_API_TOKEN:
+    logger.error("DYNATRACE_API_URL or DYNATRACE_API_TOKEN environment variable is not set.")
+    sys.exit(1)
 
-def get_pods_with_labels():
-    """Fetches all pods and checks for the configured labels."""
+def get_existing_events(pod_name, namespace):
+    """Checks Dynatrace for existing events related to the pod."""
+    try:
+        headers = {"Authorization": f"Api-Token {DYNATRACE_API_TOKEN}"}
+        params = {"filter": f"title:Pod {pod_name} in namespace {namespace} is not observable"}
+        response = requests.get(f"{DYNATRACE_API_URL}/api/v2/events", headers=headers, params=params)
+        response.raise_for_status()
+        events = response.json().get("events", [])
+        return len(events) > 0
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to query existing events: {e}")
+        return False
+
+def send_alert_to_dynatrace(pod_details):
+    """Sends an alert to Dynatrace."""
+    try:
+        payload = {
+            "eventType": "CUSTOM_ANNOTATION",
+            "title": f"Pod {pod_details['POD Name']} in namespace {pod_details['Namespace']} is not observable",
+            "description": f"The pod {pod_details['POD Name']} has the label 'observable=false'.",
+            "entitySelector": f"type(POD),entityId({pod_details['POD Name']})",
+            "properties": pod_details,
+            "startTime": int(datetime.now(timezone.utc).timestamp() * 1000)
+        }
+        headers = {
+            "Authorization": f"Api-Token {DYNATRACE_API_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        response = requests.post(f"{DYNATRACE_API_URL}/api/v2/ingest", headers=headers, json=payload)
+        response.raise_for_status()
+        logger.info(f"Alert sent successfully for pod {pod_details['POD Name']}.")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to send alert for pod {pod_details['POD Name']}: {e}")
+
+def get_pod_details(pod):
+    """Extracts required details from a pod object."""
+    return {
+        "POD Name": pod.metadata.name,
+        "Namespace": pod.metadata.namespace,
+        "Node": pod.spec.node_name,
+        "IP": pod.status.pod_ip,
+        "Status": pod.status.phase,
+        "Start Time": pod.status.start_time.isoformat() if pod.status.start_time else "Unknown",
+        "Image": ", ".join([container.image for container in pod.spec.containers]),
+    }
+
+def get_pods_with_labels(namespace):
+    """Fetches all pods in a namespace and checks for the configured labels."""
     try:
         config.load_incluster_config()
         v1 = client.CoreV1Api()
-        pods = v1.list_namespaced_pod(namespace=NAMESPACE)
+        pods = v1.list_namespaced_pod(namespace=namespace)
         
         matching_pods = []
         for pod in pods.items:
             for label in LABELS_TO_CHECK:
                 if label["label_key"] in pod.metadata.labels and pod.metadata.labels[label["label_key"]] == label["label_value"]:
-                    pod_details = {
-                        "name": pod.metadata.name,
-                        "namespace": pod.metadata.namespace,
-                        "start_time": pod.status.start_time.isoformat() if pod.status.start_time else "Unknown"
-                    }
+                    pod_details = get_pod_details(pod)
                     matching_pods.append(pod_details)
 
         return matching_pods
 
     except ApiException as e:
-        logger.error(f"Exception when calling Kubernetes API for namespace '{NAMESPACE}': {e}")
+        logger.error(f"Exception when calling Kubernetes API for namespace '{namespace}': {e}")
         return []
 
-def generate_alert_payload(pod_details):
-    """Generates the payload for the webhook."""
-    payload = {
-        "ImpactedEntities": pod_details["name"],
-        "ImpactedEntity": pod_details["name"],
-        "ProblemDetailsText": f"Pod {pod_details['name']} in namespace {pod_details['namespace']} has label 'observable=false'.",
-        "ProblemTitle": f"Pod {pod_details['name']} is not observable",
-        "ProblemImpact": "High",
-        "ProblemSeverity": "Critical",
-        "State": "Open",
-        "Tags": f"namespace:{pod_details['namespace']},label:observable=false"
-    }
-    return payload
-
 def main():
-    matching_pods = get_pods_with_labels()
-    if matching_pods:
-        for pod in matching_pods:
-            logger.info(f"Pod {pod['name']} with label found. Sending alert...")
-            payload = generate_alert_payload(pod)
-            send_alert(payload)
+    all_matching_pods = []
+    for namespace in NAMESPACES:
+        logger.info(f"Checking pods in namespace: {namespace}")
+        matching_pods = get_pods_with_labels(namespace)
+        all_matching_pods.extend(matching_pods)
+
+    if all_matching_pods:
+        for pod_details in all_matching_pods:
+            logger.info(f"Pod {pod_details['POD Name']} with label found.")
+            if not get_existing_events(pod_details["POD Name"], pod_details["Namespace"]):
+                send_alert_to_dynatrace(pod_details)
+            else:
+                logger.info(f"Alert already exists for pod {pod_details['POD Name']}.")
     else:
         logger.info("No pods with matching labels found.")
 

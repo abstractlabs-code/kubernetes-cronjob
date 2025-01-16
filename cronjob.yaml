@@ -2,27 +2,27 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: pod-label-checker
-  namespace: default
+  namespace: mgmt
 spec:
-  schedule: "*/2 * * * *" # Runs every 5 minutes, use https://crontab-generator.org to generate 
+  schedule: "*/2 * * * *" # Runs every 2 minutes
   jobTemplate:
     spec:
       template:
         spec:
-          serviceAccountName: pod-info-reader-sa  
+          serviceAccountName: mgmt-service-account  
           containers:
             - name: label-checker
               image: abstractlabs/pod-check-cronjob:latest
               imagePullPolicy: Always
               env:
-                - name: WEBHOOK_URL
-                  value: "https://webhook.site/8aa771ea-7c7f-4b17-9fa8-4921d1242ba8"
-                - name: POD_NAMESPACE
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.namespace 
+                - name: DYNATRACE_API_URL
+                  value: "https://cfk95009.live.dynatrace.com/"
+                - name: DYNATRACE_API_TOKEN
+                  value: dt0c01.2HHMB4JW325IGCIAAVKNXOOE.WDQMXPHKO3QSATUH2C7ZJ56JPLGW36D347NWPR2I45ZBT4QHF3BGDTIZOAPX5IYO
+                - name: POD_NAMESPACES
+                  value: "mgmt,test1,test2" # Comma-separated list of namespaces
                 - name: LABELS_TO_CHECK
-                  value: '[{"label_key": "observable", "label_value": "false"}]' # Can provide a list of labels
+                  value: '[{"label_key": "observable", "label_value": "false"}]'
               resources:
                 limits:
                   memory: "128Mi"
