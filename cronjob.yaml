@@ -12,27 +12,19 @@ spec:
           serviceAccountName: mgmt-service-account  
           containers:
             - name: label-checker
-              image: abstractlabs/pod-check-cronjob:latest
+              image: abstractlabs/cap-observability-cronjob
               imagePullPolicy: Always
               env:
                 - name: DYNATRACE_API_URL
-                  value: "https://cfk95009.live.dynatrace.com/"
+                  value: "https://****.live.dynatrace.com/"
                 - name: DYNATRACE_API_TOKEN
-                  value: dt0c01.2HHMB4JW325IGCIAAVKNXOOE.WDQMXPHKO3QSATUH2C7ZJ56JPLGW36D347NWPR2I45ZBT4QHF3BGDTIZOAPX5IYO
+                  value: ""
                 - name: POD_NAMESPACES
                   value: "mgmt,test1,test2" # Comma-separated list of namespaces
                 - name: LABELS_TO_CHECK
-                  value: '[{"label_key": "observable", "label_value": "false"}]'
-              resources:
-                limits:
-                  memory: "128Mi"
-                  cpu: "500m"
-                requests:
-                  memory: "64Mi"
-                  cpu: "250m"
+                  value: '[{"label_key": "observability", "label_value": "false"}]'
               securityContext:
                 runAsNonRoot: true
-                runAsUser: 1000
                 allowPrivilegeEscalation: false
           restartPolicy: OnFailure
       backoffLimit: 3

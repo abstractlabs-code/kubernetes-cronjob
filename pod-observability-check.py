@@ -13,41 +13,33 @@ logger = logging.getLogger(__name__)
 DYNATRACE_API_URL = os.getenv("DYNATRACE_API_URL")
 DYNATRACE_API_TOKEN = os.getenv("DYNATRACE_API_TOKEN")
 NAMESPACES = os.getenv("POD_NAMESPACES", "default").split(",")  # List of namespaces
-LABELS_TO_CHECK = json.loads(os.getenv("LABELS_TO_CHECK", '[{"label_key": "observable", "label_value": "false"}]'))
+
+try:
+    LABELS_TO_CHECK = json.loads(os.getenv("LABELS_TO_CHECK", '[{"label_key": "observable", "label_value": "false"}]'))
+except json.JSONDecodeError as e:
+    logger.error(f"Failed to parse LABELS_TO_CHECK: {e}")
+    sys.exit(1)
 
 if not DYNATRACE_API_URL or not DYNATRACE_API_TOKEN:
     logger.error("DYNATRACE_API_URL or DYNATRACE_API_TOKEN environment variable is not set.")
     sys.exit(1)
 
-def get_existing_events(pod_name, namespace):
-    """Checks Dynatrace for existing events related to the pod."""
-    try:
-        headers = {"Authorization": f"Api-Token {DYNATRACE_API_TOKEN}"}
-        params = {"filter": f"title:Pod {pod_name} in namespace {namespace} is not observable"}
-        response = requests.get(f"{DYNATRACE_API_URL}/api/v2/events", headers=headers, params=params)
-        response.raise_for_status()
-        events = response.json().get("events", [])
-        return len(events) > 0
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to query existing events: {e}")
-        return False
-
 def send_alert_to_dynatrace(pod_details):
     """Sends an alert to Dynatrace."""
     try:
         payload = {
-            "eventType": "CUSTOM_ANNOTATION",
+            "eventType": "CUSTOM_ALERT",
             "title": f"Pod {pod_details['POD Name']} in namespace {pod_details['Namespace']} is not observable",
             "description": f"The pod {pod_details['POD Name']} has the label 'observable=false'.",
             "entitySelector": f"type(POD),entityId({pod_details['POD Name']})",
             "properties": pod_details,
-            "startTime": int(datetime.now(timezone.utc).timestamp() * 1000)
+            "startTime": f"Started: {pod_details['Start Time']}"
         }
         headers = {
             "Authorization": f"Api-Token {DYNATRACE_API_TOKEN}",
             "Content-Type": "application/json"
         }
-        response = requests.post(f"{DYNATRACE_API_URL}/api/v2/ingest", headers=headers, json=payload)
+        response = requests.post(f"{DYNATRACE_API_URL}/api/v2/events/ingest", headers=headers, json=payload)
         response.raise_for_status()
         logger.info(f"Alert sent successfully for pod {pod_details['POD Name']}.")
     except requests.exceptions.RequestException as e:
@@ -95,10 +87,7 @@ def main():
     if all_matching_pods:
         for pod_details in all_matching_pods:
             logger.info(f"Pod {pod_details['POD Name']} with label found.")
-            if not get_existing_events(pod_details["POD Name"], pod_details["Namespace"]):
-                send_alert_to_dynatrace(pod_details)
-            else:
-                logger.info(f"Alert already exists for pod {pod_details['POD Name']}.")
+            send_alert_to_dynatrace(pod_details)
     else:
         logger.info("No pods with matching labels found.")
 
