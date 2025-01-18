@@ -11,6 +11,7 @@ COPY pod-observability-check.py .
 
 RUN apk add --no-cache \
     gcc \
+    curl \
     musl-dev \
     libffi-dev \
     openssl-dev \

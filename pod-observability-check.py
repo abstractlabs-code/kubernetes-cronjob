@@ -1,11 +1,10 @@
 import os
 import logging
 import json
-import requests
+import subprocess
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 import sys
-from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -25,25 +24,34 @@ if not DYNATRACE_API_URL or not DYNATRACE_API_TOKEN:
     sys.exit(1)
 
 def send_alert_to_dynatrace(pod_details):
-    """Sends an alert to Dynatrace."""
+    """Sends an alert to Dynatrace using a curl command."""
+    payload = {
+        "eventType": "CUSTOM_ALERT",
+        "title": f"Pod {pod_details['POD Name']} in namespace {pod_details['Namespace']} is not observable",
+        "description": f"The pod {pod_details['POD Name']} has the label 'observable=false'.",
+        "properties": pod_details,
+    }
+    payload_json = json.dumps(payload)
+    curl_command = [
+        "curl", "--request", "POST",
+        "--url", f"{DYNATRACE_API_URL}/api/v2/events/ingest",
+        "--header", f"Authorization: Api-Token {DYNATRACE_API_TOKEN}",
+        "--header", "Content-Type: application/json",
+        "--data", payload_json
+    ]
+    
     try:
-        payload = {
-            "eventType": "CUSTOM_ALERT",
-            "title": f"Pod {pod_details['POD Name']} in namespace {pod_details['Namespace']} is not observable",
-            "description": f"The pod {pod_details['POD Name']} has the label 'observable=false'.",
-            "entitySelector": f"type(POD),entityId({pod_details['POD Name']})",
-            "properties": pod_details,
-            "startTime": f"Started: {pod_details['Start Time']}"
-        }
-        headers = {
-            "Authorization": f"Api-Token {DYNATRACE_API_TOKEN}",
-            "Content-Type": "application/json"
-        }
-        response = requests.post(f"{DYNATRACE_API_URL}/api/v2/events/ingest", headers=headers, json=payload)
-        response.raise_for_status()
-        logger.info(f"Alert sent successfully for pod {pod_details['POD Name']}.")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to send alert for pod {pod_details['POD Name']}: {e}")
+        result = subprocess.run(curl_command, check=True, capture_output=True, text=True)
+        response = json.loads(result.stdout)
+        event_results = response.get("eventIngestResults", [])
+        for event in event_results:
+            correlation_id = event.get("correlationId", "N/A")
+            status = event.get("status", "Unknown")
+            logger.info(f"Alert sent successfully for pod {pod_details['POD Name']}. Correlation ID: {correlation_id}, Status: {status}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to send alert for pod {pod_details['POD Name']}. Error: {e.stderr}")
+    except json.JSONDecodeError:
+        logger.error(f"Failed to parse response from Dynatrace for pod {pod_details['POD Name']}. Response: {result.stdout}")
 
 def get_pod_details(pod):
     """Extracts required details from a pod object."""

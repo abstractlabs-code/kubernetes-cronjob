@@ -16,15 +16,14 @@ spec:
               imagePullPolicy: Always
               env:
                 - name: DYNATRACE_API_URL
-                  value: "https://****.live.dynatrace.com/"
+                  value: "https://****.live.dynatrace.com"
                 - name: DYNATRACE_API_TOKEN
-                  value: ""
+                  value: abc123
                 - name: POD_NAMESPACES
                   value: "mgmt,test1,test2" # Comma-separated list of namespaces
                 - name: LABELS_TO_CHECK
                   value: '[{"label_key": "observability", "label_value": "false"}]'
               securityContext:
-                runAsNonRoot: true
                 allowPrivilegeEscalation: false
           restartPolicy: OnFailure
       backoffLimit: 3
